@@ -151,21 +151,39 @@ const login = async (req, res) => {
     //       user : user,
     //     }
     //   })
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET_KEY, {
-      expiresIn: "1d",
-    });
+    // const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET_KEY, {
+    //   expiresIn: "1d",
+    // });
+    //  ****now here create access token and refresh token ***//
+
+    const accessToken = jwt.sign({id : user._id} , process.env.ACCESS_SECRET_KEY ,{
+      expiresIn : process.env.ACCESS_TOKEN_EXPIRY,
+    })
+
+    const refreshToken = jwt.sign({id : user._id} , process.env.REFRESH_SECRET_KEY , {
+      expiresIn : process.env.REFRESH_TOKEN_EXPIRY,
+    })
+
+    user.refreshToken = refreshToken;
+
+    await user.save();
+
     const cookieOptions = {
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: true,
     };
-    res.cookie("token", token, cookieOptions);
+
+
+    res.cookie("accessToken", accessToken, cookieOptions);
+    res.cookie("refreshToken", refreshToken, cookieOptions);
 
     res.status(200).json({
       message: "User logged in successfully",
       success: true,
       data: {
-        token: token,
+        refreshToken: refreshToken,
+        accessToken : accessToken,
         user: user,
       },
     });
@@ -208,10 +226,55 @@ const getProfile = async (req, res) => {
 };
 
 const logoutUser = async (req, res) => {
-  try {
-    res.cookie("token", " ", {
-      expires: new Date(0),
+  const token = req.cookies.refreshToken;
+  if(!token){
+     res.status(401).json({
+      message: "Token Invalid",
+      error: error,
+      success: false,
+      data: {},
     });
+  }
+
+  try {
+
+    // //check is user logged in or not
+    // if(!req.user){
+    //   res.status(401).json({
+    //   message: "User Not Logged in Yet",
+    //   error: error,
+    //   success: false,
+    //   data: {},
+    // });
+    // }
+
+    const refreshTokenDecode = jwt.verify(token , process.env.REFRESH_SECRET_KEY);
+
+    const user = await User.findOne({_id : refreshTokenDecode.id});
+
+    if(!user){
+      res.status(401).json({
+      message: "User is Not Valid",
+      error: error,
+      success: false,
+      data: {},
+    });
+    }
+
+    //step 2 --> clear the cookie
+    user.refreshToken = null;
+
+    res.cookie("refreshToken", " ", {
+      expires: new Date(0),
+      httpOnly : true,
+    });
+
+    res.cookie("accessToken", " ", {
+      expires: new Date(0),
+      httpOnly : true,
+    });
+
+    //send response
 
     res.status(201).json({
       message: "User logged out Successfully",
@@ -226,6 +289,7 @@ const logoutUser = async (req, res) => {
     });
   }
 };
+
 
 const forgotPassword = async (req, res) => {
   try {

@@ -17,6 +17,14 @@ const router = express.Router();
 
 router.post("/register", registerUser);
 router.get("/verify/:token", verifyUser);
+
+
+//req send
+//http://localhost:3000/api/v1/login
+// {
+//   email : 
+//   password : 
+// }
 router.post("/login", login);
 
 router.get("/profile", IsLoggedIn , getProfile);
